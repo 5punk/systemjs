@@ -1,6 +1,6 @@
 /*
-    * SystemJS v0.21.4 Production
-    */
+* SystemJS v0.21.4 Production
+*/
 (function () {
   'use strict';
 
@@ -1698,7 +1698,12 @@
         else {
           // normalize parent with URL and paths only
           var resolvedParent = resolveIfNotPlain(p, baseURI) || applyPaths(config.baseURL, config.paths, p);
-          extend(config.submap[resolvedParent] || (config.submap[resolvedParent] = {}), v);
+          var resolved = config.submap[resolvedParent] || (config.submap[resolvedParent] = {});
+          if (typeof v === 'function') {
+            // store the function if it exists
+            resolved.func = v;
+          }
+          extend(resolved, v);
         }
       }
     }
@@ -1835,28 +1840,39 @@
     });
 
     return new Promise(function (resolve, reject) {
-      return scriptLoad(url, 'anonymous', undefined, function () {
+      // check if a function already exist for this keys
+      if (loader[CONFIG].submap[url] && typeof loader[CONFIG].submap[url].func === 'function') {
+        loader.register([], function () {
+          return {
+            exports: loader[CONFIG].submap[url].func()
+          };
+        });
+        processAnonRegister();
+        return resolve();
+      } else {
+        return scriptLoad(url, 'anonymous', undefined, function () {
 
-        // check for System.register call
-        var registered = processAnonRegister();
-        if (!registered) {
-          // no System.register -> support named AMD as anonymous
-          registerLastDefine(loader);
-          registered = processAnonRegister();
-
-          // still no registration -> attempt a global detection
+          // check for System.register call
+          var registered = processAnonRegister();
           if (!registered) {
-            var moduleValue = retrieveGlobal();
-            loader.register([], function () {
-              return {
-                exports: moduleValue
-              };
-            });
-            processAnonRegister();
+            // no System.register -> support named AMD as anonymous
+            registerLastDefine(loader);
+            registered = processAnonRegister();
+
+            // still no registration -> attempt a global detection
+            if (!registered) {
+              var moduleValue = retrieveGlobal();
+              loader.register([], function () {
+                return {
+                  exports: moduleValue
+                };
+              });
+              processAnonRegister();
+            }
           }
-        }
-        resolve();
-      }, reject);
+          resolve();
+        }, reject);
+      }
     });
   }
 
